@@ -10,7 +10,8 @@ const BASE_URL = "https://api.open-meteo.com/v1/forecast";
 
 const CURRENT_VARS =
   "temperature_2m,relative_humidity_2m,apparent_temperature,precipitation,rain,weather_code,pressure_msl,surface_pressure,wind_speed_10m,wind_direction_10m,wind_gusts_10m,is_day";
-const HOURLY_VARS = "precipitation,precipitation_probability,rain,snowfall,uv_index";
+const HOURLY_VARS =
+  "temperature_2m,weather_code,precipitation,precipitation_probability,rain,snowfall,uv_index";
 const DAILY_VARS =
   "uv_index_max,sunrise,sunset,weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max,precipitation_sum";
 /** Days of daily/hourly forecast to request, including today. */
@@ -37,6 +38,8 @@ export async function fetchWeather(lat: number, lon: number): Promise<WeatherDat
 function mapWeather(data: OpenMeteoResponse): WeatherData {
   const hourly: HourlyPoint[] = (data.hourly?.time ?? []).map((time, i) => ({
     time,
+    temperature: data.hourly.temperature_2m?.[i] ?? 0,
+    weatherCode: data.hourly.weather_code?.[i] ?? 0,
     precipitation: data.hourly.precipitation?.[i] ?? 0,
     precipitationProbability: data.hourly.precipitation_probability?.[i] ?? 0,
     rain: data.hourly.rain?.[i] ?? 0,

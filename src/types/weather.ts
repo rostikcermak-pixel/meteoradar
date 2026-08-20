@@ -16,6 +16,8 @@ export interface OpenMeteoCurrent {
 
 export interface OpenMeteoHourly {
   time: string[];
+  temperature_2m: number[];
+  weather_code: number[];
   precipitation: number[];
   precipitation_probability: number[];
   rain: number[];
@@ -48,6 +50,8 @@ export interface OpenMeteoResponse {
 
 export interface HourlyPoint {
   time: string;
+  temperature: number;
+  weatherCode: number;
   precipitation: number;
   precipitationProbability: number;
   rain: number;

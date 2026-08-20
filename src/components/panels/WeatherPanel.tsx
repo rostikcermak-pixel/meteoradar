@@ -3,6 +3,7 @@ import { useWeatherStore } from "@/store/weatherStore";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { CurrentConditions } from "./CurrentConditions";
 import { PrecipChart } from "./PrecipChart";
+import { HourlyForecast } from "./HourlyForecast";
 import { DailyForecast } from "./DailyForecast";
 import { Alerts } from "./Alerts";
 
@@ -59,9 +60,10 @@ export function WeatherPanel() {
       {data && (
         <>
           <CurrentConditions />
-          <PrecipChart />
+          <HourlyForecast />
           <DailyForecast />
           <Alerts />
+          <PrecipChart />
         </>
       )}
     </div>
