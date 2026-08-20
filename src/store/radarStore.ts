@@ -1,8 +1,19 @@
 import { create } from "zustand";
 import type { RainViewerFrame } from "@/types/radar";
+import type { ForecastGrid } from "@/types/forecast";
 import type { PlaybackSpeed } from "@/types/common";
 
 export type RadarStatus = "idle" | "loading" | "ready" | "error";
+export type ForecastStatus = "idle" | "loading" | "ready" | "error";
+
+/**
+ * One step on the scrubber. Observed radar tiles and modelled forecast frames
+ * share a single timeline so the slider runs continuously from the past,
+ * through now, into the forecast.
+ */
+export type TimelineEntry =
+  | { kind: "radar"; time: number; path: string }
+  | { kind: "forecast"; time: number; gridIndex: number };
 
 interface RadarState {
   frames: RainViewerFrame[];
@@ -11,15 +22,23 @@ interface RadarState {
   status: RadarStatus;
   error: string | null;
   lastUpdated: number | null;
-  /** Index of the most recent "now" frame (end of the past window). */
+
+  forecast: ForecastGrid | null;
+  forecastStatus: ForecastStatus;
+
+  /** Radar frames followed by forecast frames. */
+  timeline: TimelineEntry[];
+  /** Index of the newest entry that is not in the future. */
   nowIndex: number;
   frameIndex: number;
+
   playing: boolean;
   speed: PlaybackSpeed;
-  /** Radar tile opacity in 0..1. */
+  /** Overlay opacity in 0..1, shared by the radar and forecast layers. */
   opacity: number;
   showSatellite: boolean;
   showLegend: boolean;
+  showForecast: boolean;
 
   setData: (
     frames: RainViewerFrame[],
@@ -27,6 +46,8 @@ interface RadarState {
     host: string
   ) => void;
   setStatus: (status: RadarStatus, error?: string | null) => void;
+  setForecast: (forecast: ForecastGrid | null) => void;
+  setForecastStatus: (status: ForecastStatus) => void;
   setPlaying: (playing: boolean) => void;
   togglePlay: () => void;
   setFrameIndex: (index: number) => void;
@@ -37,10 +58,46 @@ interface RadarState {
   setOpacity: (opacity: number) => void;
   toggleSatellite: () => void;
   toggleLegend: () => void;
+  toggleForecast: () => void;
 }
 
-const clampIndex = (frames: RainViewerFrame[], index: number) =>
-  frames.length === 0 ? 0 : Math.max(0, Math.min(frames.length - 1, index));
+function buildTimeline(
+  frames: RainViewerFrame[],
+  forecast: ForecastGrid | null,
+  showForecast: boolean
+): TimelineEntry[] {
+  const radar: TimelineEntry[] = frames.map((f) => ({
+    kind: "radar",
+    time: f.time,
+    path: f.path,
+  }));
+  if (!forecast || !showForecast) return radar;
+
+  // Only keep forecast steps that start after the last radar frame, so the two
+  // sources never cover the same moment twice.
+  const lastRadarTime = radar.length ? radar[radar.length - 1].time : 0;
+  const future: TimelineEntry[] = forecast.frames
+    .map((f, gridIndex) => ({ f, gridIndex }))
+    .filter(({ f }) => f.time > lastRadarTime)
+    .map(({ f, gridIndex }) => ({
+      kind: "forecast" as const,
+      time: f.time,
+      gridIndex,
+    }));
+
+  return [...radar, ...future];
+}
+
+function resolveNowIndex(timeline: TimelineEntry[]): number {
+  const nowSec = Math.floor(Date.now() / 1000);
+  const futureIdx = timeline.findIndex((e) => e.time > nowSec);
+  return futureIdx === -1
+    ? Math.max(0, timeline.length - 1)
+    : Math.max(0, futureIdx - 1);
+}
+
+const clamp = (length: number, index: number) =>
+  length === 0 ? 0 : Math.max(0, Math.min(length - 1, index));
 
 export const useRadarStore = create<RadarState>((set, get) => ({
   frames: [],
@@ -49,70 +106,89 @@ export const useRadarStore = create<RadarState>((set, get) => ({
   status: "idle",
   error: null,
   lastUpdated: null,
+
+  forecast: null,
+  forecastStatus: "idle",
+
+  timeline: [],
   nowIndex: 0,
   frameIndex: 0,
+
   playing: false,
   speed: 1,
   opacity: 0.85,
   showSatellite: false,
   showLegend: true,
+  showForecast: true,
 
   setData: (frames, satellite, host) =>
     set((s) => {
-      const nowSec = Math.floor(Date.now() / 1000);
-      const futureIdx = frames.findIndex((f) => f.time > nowSec);
-      const resolvedNow =
-        futureIdx === -1 ? frames.length - 1 : Math.max(0, futureIdx - 1);
-      const keepIndex =
-        s.frames.length === 0 ? resolvedNow : clampIndex(frames, s.frameIndex);
+      const timeline = buildTimeline(frames, s.forecast, s.showForecast);
+      const nowIndex = resolveNowIndex(timeline);
       return {
         frames,
         satellite,
         host,
-        nowIndex: resolvedNow,
-        frameIndex: keepIndex,
-        lastUpdated: nowSec * 1000,
+        timeline,
+        nowIndex,
+        // Start at "now"; afterwards keep whatever the user was looking at.
+        frameIndex:
+          s.timeline.length === 0 ? nowIndex : clamp(timeline.length, s.frameIndex),
+        lastUpdated: Date.now(),
       };
     }),
 
   setStatus: (status, error = null) => set({ status, error }),
 
+  setForecast: (forecast) =>
+    set((s) => {
+      const timeline = buildTimeline(s.frames, forecast, s.showForecast);
+      return {
+        forecast,
+        timeline,
+        nowIndex: resolveNowIndex(timeline),
+        frameIndex: clamp(timeline.length, s.frameIndex),
+      };
+    }),
+
+  setForecastStatus: (forecastStatus) => set({ forecastStatus }),
+
   setPlaying: (playing) => set({ playing }),
 
   togglePlay: () => {
-    const { frames, playing, frameIndex } = get();
-    if (!frames.length) return;
+    const { timeline, playing, frameIndex } = get();
+    if (!timeline.length) return;
     if (playing) {
       set({ playing: false });
     } else {
-      const nextIndex = frameIndex >= frames.length - 1 ? 0 : frameIndex;
+      const nextIndex = frameIndex >= timeline.length - 1 ? 0 : frameIndex;
       set({ playing: true, frameIndex: nextIndex });
     }
   },
 
   setFrameIndex: (index) =>
-    set((s) => ({ frameIndex: clampIndex(s.frames, index), playing: false })),
+    set((s) => ({ frameIndex: clamp(s.timeline.length, index), playing: false })),
 
   stepForward: () =>
     set((s) => ({
       frameIndex:
-        s.frames.length === 0 ? 0 : (s.frameIndex + 1) % s.frames.length,
+        s.timeline.length === 0 ? 0 : (s.frameIndex + 1) % s.timeline.length,
       playing: false,
     })),
 
   stepBackward: () =>
     set((s) => ({
       frameIndex:
-        s.frames.length === 0
+        s.timeline.length === 0
           ? 0
-          : (s.frameIndex - 1 + s.frames.length) % s.frames.length,
+          : (s.frameIndex - 1 + s.timeline.length) % s.timeline.length,
       playing: false,
     })),
 
   advance: () =>
     set((s) => ({
       frameIndex:
-        s.frames.length === 0 ? 0 : (s.frameIndex + 1) % s.frames.length,
+        s.timeline.length === 0 ? 0 : (s.frameIndex + 1) % s.timeline.length,
     })),
 
   cycleSpeed: () =>
@@ -121,4 +197,16 @@ export const useRadarStore = create<RadarState>((set, get) => ({
   setOpacity: (opacity) => set({ opacity }),
   toggleSatellite: () => set((s) => ({ showSatellite: !s.showSatellite })),
   toggleLegend: () => set((s) => ({ showLegend: !s.showLegend })),
+
+  toggleForecast: () =>
+    set((s) => {
+      const showForecast = !s.showForecast;
+      const timeline = buildTimeline(s.frames, s.forecast, showForecast);
+      return {
+        showForecast,
+        timeline,
+        nowIndex: resolveNowIndex(timeline),
+        frameIndex: clamp(timeline.length, s.frameIndex),
+      };
+    }),
 }));

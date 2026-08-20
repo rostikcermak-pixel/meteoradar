@@ -1,6 +1,7 @@
 import { MapContainer, TileLayer, ZoomControl } from "react-leaflet";
 import { useMapStore } from "@/store/mapStore";
 import RadarLayer from "./RadarLayer";
+import ForecastLayer from "./ForecastLayer";
 import SatelliteLayer from "./SatelliteLayer";
 import MapController from "./MapController";
 import LocationMarker from "./LocationMarker";
@@ -30,6 +31,7 @@ export default function MapView() {
           maxZoom={20}
         />
         <SatelliteLayer />
+        <ForecastLayer />
         <RadarLayer />
         <LocationMarker />
         <MapController />

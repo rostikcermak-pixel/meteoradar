@@ -9,6 +9,8 @@ export function LayerControls() {
   const toggleSatellite = useRadarStore((s) => s.toggleSatellite);
   const showLegend = useRadarStore((s) => s.showLegend);
   const toggleLegend = useRadarStore((s) => s.toggleLegend);
+  const showForecast = useRadarStore((s) => s.showForecast);
+  const toggleForecast = useRadarStore((s) => s.toggleForecast);
 
   const pct = Math.round(opacity * 100);
 
@@ -39,6 +41,11 @@ export function LayerControls() {
       </div>
 
       <div className="space-y-2.5">
+        <Toggle
+          checked={showForecast}
+          onChange={toggleForecast}
+          label="Forecast on timeline"
+        />
         <Toggle
           checked={showSatellite}
           onChange={toggleSatellite}

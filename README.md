@@ -8,9 +8,15 @@ itself 24/7 with no server to maintain.
 
 ## Features
 
-- **Animated precipitation radar** — the last ~2 hours plus a ~30-minute
-  nowcast, sourced live from [RainViewer](https://www.rainviewer.com/), with
-  play/pause, step, speed control, and a scrubbable timeline.
+- **Animated precipitation radar** — the last ~2 hours of observed radar from
+  [RainViewer](https://www.rainviewer.com/), with play/pause, step, speed
+  control, and a scrubbable timeline.
+- **Forecast on the same timeline** — the scrubber continues past "now" into
+  a 12-hour modelled precipitation forecast, drawn on the map as a smooth
+  field from an Open-Meteo grid. RainViewer's free feed usually returns no
+  nowcast frames, so this is what fills the future half of the timeline;
+  forecast steps are labelled and coloured differently from observed radar,
+  and can be switched off in the layer controls.
 - **Infrared satellite overlay** and an adjustable radar opacity / intensity
   legend.
 - **Hyperlocal current conditions** — temperature, feels-like, humidity,

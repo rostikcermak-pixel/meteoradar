@@ -20,13 +20,14 @@ function TimelineSkeleton() {
 }
 
 export function Timeline() {
-  const frames = useRadarStore((s) => s.frames);
+  const timeline = useRadarStore((s) => s.timeline);
   const frameIndex = useRadarStore((s) => s.frameIndex);
   const setFrameIndex = useRadarStore((s) => s.setFrameIndex);
   const nowIndex = useRadarStore((s) => s.nowIndex);
   const status = useRadarStore((s) => s.status);
+  const forecastStatus = useRadarStore((s) => s.forecastStatus);
 
-  if (status === "error") {
+  if (status === "error" && timeline.length === 0) {
     return (
       <div className="py-1 text-xs font-medium text-rose-300">
         ⚠ Radar feed unavailable — retrying automatically.
@@ -34,16 +35,13 @@ export function Timeline() {
     );
   }
 
-  if (status !== "ready" || frames.length === 0) {
-    return <TimelineSkeleton />;
-  }
+  if (timeline.length === 0) return <TimelineSkeleton />;
 
-  const current = frames[frameIndex];
-  const max = frames.length - 1;
+  const current = timeline[Math.min(frameIndex, timeline.length - 1)];
+  const max = timeline.length - 1;
   const pct = max === 0 ? 0 : (frameIndex / max) * 100;
   const nowPct = max === 0 ? 0 : (nowIndex / max) * 100;
-  const isFuture = current.time > Date.now() / 1000;
-  const hasNowcast = nowIndex < max;
+  const isForecast = current.kind === "forecast";
 
   return (
     <div className="w-full">
@@ -55,12 +53,12 @@ export function Timeline() {
           <span
             className={cn(
               "rounded px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide",
-              isFuture
+              isForecast
                 ? "bg-fuchsia-500/20 text-fuchsia-300"
                 : "bg-sky-500/20 text-sky-300"
             )}
           >
-            {isFuture ? "Forecast" : "Radar"}
+            {isForecast ? "Forecast" : "Radar"}
           </span>
         </div>
         <span className="truncate text-[11px] text-slate-400">
@@ -77,9 +75,15 @@ export function Timeline() {
           onChange={(e) => setFrameIndex(Number(e.target.value))}
           className="mrad-slider"
           style={{
-            background: `linear-gradient(to right, rgba(56,189,248,0.9) 0%, rgba(56,189,248,0.9) ${pct}%, rgba(255,255,255,0.12) ${pct}%)`,
+            // Past is blue, forecast is magenta, split at the "now" marker.
+            background: `linear-gradient(to right,
+              rgba(56,189,248,0.9) 0%,
+              rgba(56,189,248,0.9) ${Math.min(pct, nowPct)}%,
+              rgba(217,70,239,0.85) ${Math.min(pct, nowPct)}%,
+              rgba(217,70,239,0.85) ${pct}%,
+              rgba(255,255,255,0.12) ${pct}%)`,
           }}
-          aria-label="Radar timeline"
+          aria-label="Radar and forecast timeline"
         />
         <span
           className="pointer-events-none absolute -top-0.5 h-3.5 w-px bg-white/50"
@@ -88,15 +92,21 @@ export function Timeline() {
       </div>
 
       <div className="mt-0.5 flex justify-between text-[10px] font-medium text-slate-500">
-        <span>{formatUnixHHMM(frames[0].time)}</span>
+        <span>{formatUnixHHMM(timeline[0].time)}</span>
         <span className="text-slate-400">now</span>
-        <span>{formatUnixHHMM(frames[max].time)}</span>
+        <span>{formatUnixHHMM(timeline[max].time)}</span>
       </div>
 
-      {!hasNowcast && (
+      {isForecast && (
         <p className="mt-1.5 text-[10px] text-slate-500">
-          No short-term forecast frames from the radar provider right now —
-          only observed radar is available.
+          Modelled precipitation forecast (Open-Meteo) — smoother and coarser
+          than live radar.
+        </p>
+      )}
+
+      {forecastStatus === "error" && !isForecast && (
+        <p className="mt-1.5 text-[10px] text-amber-300/80">
+          Forecast steps unavailable right now — showing observed radar only.
         </p>
       )}
     </div>
