@@ -97,18 +97,25 @@ export function Timeline() {
         <span>{formatUnixHHMM(timeline[max].time)}</span>
       </div>
 
-      {isForecast && (
-        <p className="mt-1.5 text-[10px] text-slate-500">
-          Modelled precipitation forecast (Open-Meteo) — smoother and coarser
-          than live radar.
-        </p>
-      )}
-
-      {forecastStatus === "error" && !isForecast && (
-        <p className="mt-1.5 text-[10px] text-amber-300/80">
-          Forecast steps unavailable right now — showing observed radar only.
-        </p>
-      )}
+      {/*
+        Fixed height and always rendered: this sits in the bottom sheet's
+        always-visible dock, so a line appearing or vanishing mid-scrub would
+        resize the dock and make the sheet jump under the user's finger.
+      */}
+      <p
+        className={cn(
+          "mt-1.5 h-3.5 truncate text-[10px] leading-3.5",
+          forecastStatus === "error" && !isForecast
+            ? "text-amber-300/80"
+            : "text-slate-500"
+        )}
+      >
+        {isForecast
+          ? "Modelled forecast (Open-Meteo) — coarser than live radar"
+          : forecastStatus === "error"
+            ? "Forecast unavailable — showing observed radar only"
+            : ""}
+      </p>
     </div>
   );
 }
