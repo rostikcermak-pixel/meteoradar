@@ -43,6 +43,7 @@ export function Timeline() {
   const pct = max === 0 ? 0 : (frameIndex / max) * 100;
   const nowPct = max === 0 ? 0 : (nowIndex / max) * 100;
   const isFuture = current.time > Date.now() / 1000;
+  const hasNowcast = nowIndex < max;
 
   return (
     <div className="w-full">
@@ -91,6 +92,13 @@ export function Timeline() {
         <span className="text-slate-400">now</span>
         <span>{formatUnixHHMM(frames[max].time)}</span>
       </div>
+
+      {!hasNowcast && (
+        <p className="mt-1.5 text-[10px] text-slate-500">
+          No short-term forecast frames from the radar provider right now —
+          only observed radar is available.
+        </p>
+      )}
     </div>
   );
 }
