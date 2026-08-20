@@ -1,0 +1,13 @@
+{
+  "name": "MeteoRadar — Live Weather Radar",
+  "short_name": "MeteoRadar",
+  "description": "Live animated weather radar, precipitation forecasts, and hyperlocal conditions.",
+  "start_url": ".",
+  "scope": ".",
+  "display": "standalone",
+  "background_color": "#05080f",
+  "theme_color": "#05080f",
+  "icons": [
+    { "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }
+  ]
+}
