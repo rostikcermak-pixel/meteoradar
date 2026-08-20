@@ -28,6 +28,11 @@ export interface OpenMeteoDaily {
   uv_index_max: number[];
   sunrise: string[];
   sunset: string[];
+  weather_code: number[];
+  temperature_2m_max: number[];
+  temperature_2m_min: number[];
+  precipitation_probability_max: number[];
+  precipitation_sum: number[];
 }
 
 export interface OpenMeteoResponse {
@@ -50,6 +55,15 @@ export interface HourlyPoint {
   uvIndex: number;
 }
 
+export interface DailyPoint {
+  date: string;
+  weatherCode: number;
+  tempMax: number;
+  tempMin: number;
+  precipitationProbabilityMax: number;
+  precipitationSum: number;
+}
+
 export type AlertSeverity = "severe" | "warning" | "watch" | "info";
 
 export interface WeatherAlert {
@@ -63,6 +77,7 @@ export interface WeatherAlert {
 export interface WeatherData {
   current: OpenMeteoCurrent;
   hourly: HourlyPoint[];
+  daily: DailyPoint[];
   uvIndexMax: number;
   sunrise: string;
   sunset: string;

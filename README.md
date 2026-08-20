@@ -16,8 +16,9 @@ itself 24/7 with no server to maintain.
 - **Hyperlocal current conditions** — temperature, feels-like, humidity,
   pressure, wind, UV index, and rain rate for whatever point is centered on
   the map, from [Open-Meteo](https://open-meteo.com/).
-- **24-hour precipitation forecast chart** and derived weather advisories
-  (heavy rain, snow, storms, high winds).
+- **24-hour precipitation forecast chart** plus a **7-day forecast strip**
+  (daily high/low, condition icon, rain chance), and derived weather
+  advisories (heavy rain, snow, storms, high winds).
 - **Place search** (via OpenStreetMap Nominatim) and automatic geolocation,
   with a graceful fallback if location access is denied.
 - Auto-refreshing data (radar every 5 min, conditions every 10 min) so a tab

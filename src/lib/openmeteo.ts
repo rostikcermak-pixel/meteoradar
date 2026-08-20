@@ -1,4 +1,5 @@
 import type {
+  DailyPoint,
   HourlyPoint,
   OpenMeteoResponse,
   WeatherAlert,
@@ -10,7 +11,10 @@ const BASE_URL = "https://api.open-meteo.com/v1/forecast";
 const CURRENT_VARS =
   "temperature_2m,relative_humidity_2m,apparent_temperature,precipitation,rain,weather_code,pressure_msl,surface_pressure,wind_speed_10m,wind_direction_10m,wind_gusts_10m,is_day";
 const HOURLY_VARS = "precipitation,precipitation_probability,rain,snowfall,uv_index";
-const DAILY_VARS = "uv_index_max,sunrise,sunset";
+const DAILY_VARS =
+  "uv_index_max,sunrise,sunset,weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max,precipitation_sum";
+/** Days of daily/hourly forecast to request, including today. */
+const FORECAST_DAYS = 7;
 
 export async function fetchWeather(lat: number, lon: number): Promise<WeatherData> {
   const params = new URLSearchParams({
@@ -20,7 +24,7 @@ export async function fetchWeather(lat: number, lon: number): Promise<WeatherDat
     hourly: HOURLY_VARS,
     daily: DAILY_VARS,
     timezone: "auto",
-    forecast_days: "2",
+    forecast_days: String(FORECAST_DAYS),
     wind_speed_unit: "kmh",
   });
 
@@ -40,9 +44,19 @@ function mapWeather(data: OpenMeteoResponse): WeatherData {
     uvIndex: data.hourly.uv_index?.[i] ?? 0,
   }));
 
+  const daily: DailyPoint[] = (data.daily?.time ?? []).map((date, i) => ({
+    date,
+    weatherCode: data.daily.weather_code?.[i] ?? 0,
+    tempMax: data.daily.temperature_2m_max?.[i] ?? 0,
+    tempMin: data.daily.temperature_2m_min?.[i] ?? 0,
+    precipitationProbabilityMax: data.daily.precipitation_probability_max?.[i] ?? 0,
+    precipitationSum: data.daily.precipitation_sum?.[i] ?? 0,
+  }));
+
   return {
     current: data.current,
     hourly,
+    daily,
     uvIndexMax: data.daily?.uv_index_max?.[0] ?? 0,
     sunrise: data.daily?.sunrise?.[0] ?? "",
     sunset: data.daily?.sunset?.[0] ?? "",

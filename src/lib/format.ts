@@ -101,3 +101,12 @@ export function formatMm(n: number | null | undefined): string {
 export function formatWind(speedKmh: number | null | undefined): string {
   return speedKmh == null ? "—" : `${Math.round(speedKmh)} km/h`;
 }
+
+/** "Today" / "Tomorrow" / short weekday ("Wed") for a daily forecast date. */
+export function formatDayLabel(dateStr: string, index: number): string {
+  if (index === 0) return "Today";
+  if (index === 1) return "Tomorrow";
+  const d = new Date(`${dateStr}T00:00:00`);
+  if (Number.isNaN(d.getTime())) return dateStr;
+  return d.toLocaleDateString(undefined, { weekday: "short" });
+}
