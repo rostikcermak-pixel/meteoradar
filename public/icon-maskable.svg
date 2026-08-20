@@ -1,4 +1,9 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512" role="img" aria-label="MeteoRadar">
+  <!--
+    Maskable variant: full-bleed background, artwork scaled into the safe zone
+    (the centred circle of 80% diameter) so Android can crop this to a circle,
+    squircle, or rounded square without clipping the radar.
+  -->
   <defs>
     <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
       <stop offset="0" stop-color="#0e1a2e"/>
@@ -27,10 +32,10 @@
     </linearGradient>
   </defs>
 
-  <rect width="512" height="512" rx="112" fill="url(#bg)"/>
-  <rect width="512" height="512" rx="112" fill="url(#glow)"/>
+  <rect width="512" height="512" fill="url(#bg)"/>
+  <rect width="512" height="512" fill="url(#glow)"/>
 
-  <g>
+  <g transform="translate(256 256) scale(0.86) translate(-256 -256)">
     <!-- range rings + crosshair -->
     <path d="M74 256H438M256 74V438" stroke="#7dd3fc" stroke-opacity="0.09" stroke-width="2"/>
     <circle cx="256" cy="256" r="60" fill="none" stroke="#38bdf8" stroke-opacity="0.16" stroke-width="2.5"/>
