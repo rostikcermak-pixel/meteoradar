@@ -7,8 +7,12 @@ import { debounce } from "@/lib/geo";
 
 /** Model runs update hourly; this keeps a long-lived tab in step with them. */
 const REFRESH_MS = 20 * 60 * 1000;
-/** Padding around the viewport so small pans don't trigger a refetch. */
-const PAD = 0.35;
+/**
+ * Padding around the viewport so small pans don't trigger a refetch. Kept
+ * modest: every bit of padding spends grid resolution on area the user can't
+ * see, which is what makes the forecast overlay look blurry.
+ */
+const PAD = 0.2;
 
 /**
  * Keeps the precipitation forecast grid in sync with the map view. Fetching is
