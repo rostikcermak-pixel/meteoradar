@@ -29,6 +29,63 @@ export function toWmsTime(unixSeconds: number): string {
   return `${new Date(unixSeconds * 1000).toISOString().slice(0, 13)}:00:00.000Z`;
 }
 
+const MERC_MAX = 20037508.34;
+
+function mercX(lon: number): number {
+  return (lon * MERC_MAX) / 180;
+}
+
+function mercYm(lat: number): number {
+  const clamped = Math.max(-85.05, Math.min(85.05, lat));
+  return (
+    (Math.log(Math.tan(((90 + clamped) * Math.PI) / 360)) / (Math.PI / 180)) *
+    (MERC_MAX / 180)
+  );
+}
+
+export interface ImageRequest {
+  west: number;
+  south: number;
+  east: number;
+  north: number;
+  width: number;
+  height: number;
+}
+
+/**
+ * One rendered image for the whole view, rather than a grid of tiles.
+ *
+ * Tiles meant eight or more requests per forecast step, and DWD answers in
+ * roughly two seconds, so every scrub waited on a fresh round of them. Asking
+ * for a single image per step cuts that to one request, which is few enough to
+ * fetch every step up front and make stepping instant.
+ */
+export function forecastImageUrl(req: ImageRequest, unixSeconds: number): string {
+  const bbox = [
+    mercX(req.west),
+    mercYm(req.south),
+    mercX(req.east),
+    mercYm(req.north),
+  ].join(",");
+
+  const query = [
+    "service=WMS",
+    "version=1.3.0",
+    "request=GetMap",
+    `layers=${encodeURIComponent(DWD_LAYER)}`,
+    `styles=${encodeURIComponent(DWD_STYLE)}`,
+    "crs=EPSG:3857",
+    `bbox=${bbox}`,
+    `width=${Math.round(req.width)}`,
+    `height=${Math.round(req.height)}`,
+    "format=image/png",
+    "transparent=true",
+    `time=${toWmsTime(unixSeconds)}`,
+  ].join("&");
+
+  return `${DWD_WMS_URL}?${query}`;
+}
+
 /**
  * Hourly forecast instants, starting at the next whole hour. Generated rather
  * than read from GetCapabilities, whose document is ~850 KB — far too much to
