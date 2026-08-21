@@ -4,14 +4,15 @@ import type { TileExtent } from "@/lib/rainviewer";
 const BASE_URL = "https://api.open-meteo.com/v1/forecast";
 
 /**
- * Grid resolution. 24 x 16 = 384 points is the practical ceiling: the API
+ * How many points one grid may spend. 384 is the practical ceiling: the API
  * takes coordinates in the query string and answers 414 (URI Too Long) at
  * around 600 points. At a typical city-level view this puts a grid cell near
  * 10 x 13 km — still far coarser than radar's ~0.8 km, which is why forecast
  * steps look smooth next to observed scans.
  */
-export const GRID_COLS = 24;
-export const GRID_ROWS = 16;
+export const GRID_BUDGET = 384;
+const MIN_SIDE = 6;
+const MAX_SIDE = 48;
 /** How many hours beyond the observed radar the timeline should reach. */
 export const FORECAST_HOURS = 12;
 
@@ -41,6 +42,31 @@ export function gridLatitudes(south: number, north: number, rows: number): numbe
   );
 }
 
+/**
+ * Splits the point budget between columns and rows so that a cell comes out
+ * roughly square on screen.
+ *
+ * A fixed shape is wrong on a phone: 24x16 over a tall, narrow viewport makes
+ * each cell about four times taller than it is wide, and the smoothing then
+ * drags every shower into a vertical streak that reads as banding rather than
+ * weather.
+ */
+export function gridShape(extent: TileExtent): { cols: number; rows: number } {
+  const width = toRad(extent.east - extent.west);
+  const height = mercatorY(extent.north) - mercatorY(extent.south);
+  const aspect = width > 0 && height > 0 ? width / height : 1;
+
+  const rows = Math.max(
+    MIN_SIDE,
+    Math.min(MAX_SIDE, Math.round(Math.sqrt(GRID_BUDGET / aspect)))
+  );
+  const cols = Math.max(
+    MIN_SIDE,
+    Math.min(MAX_SIDE, Math.floor(GRID_BUDGET / rows))
+  );
+  return { cols, rows };
+}
+
 export function gridLongitudes(west: number, east: number, cols: number): number[] {
   return Array.from(
     { length: cols },
@@ -62,8 +88,9 @@ export async function fetchForecastGrid(
   extent: TileExtent,
   signal?: AbortSignal
 ): Promise<ForecastGrid> {
-  const lats = gridLatitudes(extent.south, extent.north, GRID_ROWS);
-  const lons = gridLongitudes(extent.west, extent.east, GRID_COLS);
+  const { cols, rows } = gridShape(extent);
+  const lats = gridLatitudes(extent.south, extent.north, rows);
+  const lons = gridLongitudes(extent.west, extent.east, cols);
 
   const latParam: string[] = [];
   const lonParam: string[] = [];
@@ -110,8 +137,8 @@ export async function fetchForecastGrid(
   }));
 
   return {
-    cols: GRID_COLS,
-    rows: GRID_ROWS,
+    cols,
+    rows,
     west: extent.west,
     east: extent.east,
     south: extent.south,
