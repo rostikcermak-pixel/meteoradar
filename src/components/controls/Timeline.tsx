@@ -1,4 +1,6 @@
 import { useRadarStore } from "@/store/radarStore";
+import { useMapStore } from "@/store/mapStore";
+import { coversBounds } from "@/lib/forecast";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { formatUnixHHMM, formatUnixDateTime } from "@/lib/format";
 import { cn } from "@/utils/cn";
@@ -26,6 +28,8 @@ export function Timeline() {
   const nowIndex = useRadarStore((s) => s.nowIndex);
   const status = useRadarStore((s) => s.status);
   const forecastStatus = useRadarStore((s) => s.forecastStatus);
+  const forecast = useRadarStore((s) => s.forecast);
+  const bounds = useMapStore((s) => s.bounds);
 
   if (status === "error" && timeline.length === 0) {
     return (
@@ -42,6 +46,23 @@ export function Timeline() {
   const pct = max === 0 ? 0 : (frameIndex / max) * 100;
   const nowPct = max === 0 ? 0 : (nowIndex / max) * 100;
   const isForecast = current.kind === "forecast";
+  // A failed refresh while forecast steps are still on the timeline is not
+  // worth reporting — the steps are there and valid, just not re-fetched.
+  const hasForecastSteps = timeline.some((e) => e.kind === "forecast");
+  // The overlay is withheld when the grid doesn't span the view, so the
+  // caption has to track the same condition or it will describe something the
+  // map isn't showing.
+  const covered = coversBounds(forecast, bounds);
+
+  const caption = isForecast
+    ? covered
+      ? { text: "Modelled forecast (Open-Meteo) — coarser than live radar", warn: false }
+      : forecastStatus === "error"
+        ? { text: "Forecast unavailable for this area", warn: true }
+        : { text: "Loading forecast for this area…", warn: false }
+    : forecastStatus === "error" && !hasForecastSteps
+      ? { text: "Forecast unavailable — showing observed radar only", warn: true }
+      : { text: "", warn: false };
 
   return (
     <div className="w-full">
@@ -105,16 +126,10 @@ export function Timeline() {
       <p
         className={cn(
           "mt-1.5 h-3.5 truncate text-[10px] leading-3.5",
-          forecastStatus === "error" && !isForecast
-            ? "text-amber-300/80"
-            : "text-slate-500"
+          caption.warn ? "text-amber-300/80" : "text-slate-500"
         )}
       >
-        {isForecast
-          ? "Modelled forecast (Open-Meteo) — coarser than live radar"
-          : forecastStatus === "error"
-            ? "Forecast unavailable — showing observed radar only"
-            : ""}
+        {caption.text}
       </p>
     </div>
   );

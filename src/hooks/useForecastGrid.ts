@@ -1,12 +1,14 @@
 import { useEffect } from "react";
 import { useMapStore } from "@/store/mapStore";
 import { useRadarStore } from "@/store/radarStore";
-import { fetchForecastGrid, needsRefetch } from "@/lib/forecast";
-import type { TileExtent } from "@/lib/rainviewer";
+import { fetchForecastGrid, needsRefetch, coversBounds } from "@/lib/forecast";
+import type { GeoBounds } from "@/types/common";
 import { debounce } from "@/lib/geo";
 
 /** Model runs update hourly; this keeps a long-lived tab in step with them. */
 const REFRESH_MS = 20 * 60 * 1000;
+/** A dropped request shouldn't wait out the full refresh interval. */
+const RETRY_MS = 15 * 1000;
 /**
  * Padding around the viewport so small pans don't trigger a refetch. Kept
  * modest: every bit of padding spends grid resolution on area the user can't
@@ -14,66 +16,77 @@ const REFRESH_MS = 20 * 60 * 1000;
  */
 const PAD = 0.2;
 
+function padBounds(b: GeoBounds): GeoBounds {
+  const spanLon = b.east - b.west;
+  const spanLat = b.north - b.south;
+  return {
+    west: b.west - spanLon * PAD,
+    east: b.east + spanLon * PAD,
+    south: Math.max(-84, b.south - spanLat * PAD),
+    north: Math.min(84, b.north + spanLat * PAD),
+  };
+}
+
 /**
  * Keeps the precipitation forecast grid in sync with the map view. Fetching is
- * debounced and skipped entirely while the existing grid still covers the
- * viewport, so panning around doesn't hammer the API.
+ * debounced and skipped while the existing grid still covers the viewport, so
+ * panning around doesn't hammer the API.
  */
 export function useForecastGrid() {
-  const lat = useMapStore((s) => s.center.lat);
-  const lon = useMapStore((s) => s.center.lon);
-  const zoom = useMapStore((s) => s.zoom);
+  const bounds = useMapStore((s) => s.bounds);
+  // Re-run only on meaningful viewport changes, not on every pixel of panning.
+  const key = bounds
+    ? [bounds.west, bounds.south, bounds.east, bounds.north]
+        .map((n) => n.toFixed(2))
+        .join(",")
+    : "";
 
   useEffect(() => {
+    if (!bounds) return;
+
     let cancelled = false;
     let controller: AbortController | null = null;
+    let timer: ReturnType<typeof setTimeout> | undefined;
 
     const run = async (force: boolean) => {
-      // Approximate the viewport from centre + zoom; exact bounds aren't needed
-      // because the grid is padded well beyond the visible area.
-      const spanLon = (360 / Math.pow(2, zoom)) * 1.6;
-      const spanLat = spanLon * 0.6;
-      const extent: TileExtent = {
-        west: lon - spanLon / 2,
-        east: lon + spanLon / 2,
-        south: Math.max(-84, lat - spanLat / 2),
-        north: Math.min(84, lat + spanLat / 2),
-      };
-
-      if (!force && !needsRefetch(useRadarStore.getState().forecast, extent)) return;
-
-      const padded: TileExtent = {
-        west: extent.west - spanLon * PAD,
-        east: extent.east + spanLon * PAD,
-        south: Math.max(-84, extent.south - spanLat * PAD),
-        north: Math.min(84, extent.north + spanLat * PAD),
-      };
+      const current = useRadarStore.getState().forecast;
+      if (!force && !needsRefetch(current, bounds)) return;
 
       controller?.abort();
       controller = new AbortController();
 
       try {
         useRadarStore.getState().setForecastStatus("loading");
-        const grid = await fetchForecastGrid(padded, controller.signal);
+        const grid = await fetchForecastGrid(padBounds(bounds), controller.signal);
         if (cancelled) return;
         useRadarStore.getState().setForecast(grid);
         useRadarStore.getState().setForecastStatus("ready");
+        timer = setTimeout(() => run(true), REFRESH_MS);
       } catch (e) {
         if (cancelled || (e as Error).name === "AbortError") return;
-        useRadarStore.getState().setForecastStatus("error");
+
+        // A failed refresh is only worth surfacing if it leaves the user with
+        // nothing usable. When the grid we already hold still covers the view,
+        // the forecast on screen is valid — just not freshly fetched — so
+        // reporting an error would contradict the timeline.
+        const held = useRadarStore.getState().forecast;
+        useRadarStore
+          .getState()
+          .setForecastStatus(coversBounds(held, bounds) ? "ready" : "error");
+        timer = setTimeout(() => run(true), RETRY_MS);
       }
     };
 
     const load = debounce(() => run(false), 600);
     load();
 
-    const id = setInterval(() => run(true), REFRESH_MS);
-
     return () => {
       cancelled = true;
       load.cancel();
       controller?.abort();
-      clearInterval(id);
+      clearTimeout(timer);
     };
-  }, [lat, lon, zoom]);
+    // `bounds` is captured through `key`, which changes only on real movement.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [key]);
 }

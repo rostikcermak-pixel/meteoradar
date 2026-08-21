@@ -22,13 +22,28 @@ export default function MapController() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [flyToken]);
 
-  useMapEvents({
-    moveend: () => {
-      const c = map.getCenter();
-      useMapStore.getState().setCenter({ lat: c.lat, lon: c.lng });
-      useMapStore.getState().setZoom(map.getZoom());
-    },
-  });
+  const syncViewport = () => {
+    const c = map.getCenter();
+    const b = map.getBounds();
+    useMapStore.getState().setCenter({ lat: c.lat, lon: c.lng });
+    useMapStore.getState().setZoom(map.getZoom());
+    useMapStore.getState().setBounds({
+      west: b.getWest(),
+      south: b.getSouth(),
+      east: b.getEast(),
+      north: b.getNorth(),
+    });
+  };
+
+  // Publish the initial viewport too — without this, layers that size
+  // themselves to the visible area have nothing to work from until the first
+  // pan.
+  useEffect(() => {
+    syncViewport();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [map]);
+
+  useMapEvents({ moveend: syncViewport });
 
   return null;
 }

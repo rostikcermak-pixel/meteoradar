@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import type { GeoPoint } from "@/types/common";
+import type { GeoBounds, GeoPoint } from "@/types/common";
 import { DEFAULT_CENTER, DEFAULT_LABEL } from "@/lib/geo";
 
 interface MapState {
@@ -7,6 +7,12 @@ interface MapState {
   center: GeoPoint;
   /** Current viewport zoom. */
   zoom: number;
+  /**
+   * The viewport's real geographic extent, reported by Leaflet. Anything that
+   * needs to cover what the user can see must use this rather than deriving a
+   * span from centre and zoom, which ignores the actual window shape.
+   */
+  bounds: GeoBounds | null;
   /** The user's resolved geolocation (if permission was granted). */
   userLocation: GeoPoint | null;
   /** Human-readable label for the active location. */
@@ -19,6 +25,7 @@ interface MapState {
 
   setCenter: (center: GeoPoint) => void;
   setZoom: (zoom: number) => void;
+  setBounds: (bounds: GeoBounds) => void;
   setUserLocation: (location: GeoPoint) => void;
   setLocationLabel: (label: string) => void;
   flyTo: (target: GeoPoint, zoom?: number) => void;
@@ -27,6 +34,7 @@ interface MapState {
 export const useMapStore = create<MapState>((set) => ({
   center: DEFAULT_CENTER,
   zoom: 8,
+  bounds: null,
   userLocation: null,
   locationLabel: DEFAULT_LABEL,
   flyTarget: null,
@@ -35,6 +43,7 @@ export const useMapStore = create<MapState>((set) => ({
 
   setCenter: (center) => set({ center }),
   setZoom: (zoom) => set({ zoom }),
+  setBounds: (bounds) => set({ bounds }),
   setUserLocation: (userLocation) => set({ userLocation }),
   setLocationLabel: (locationLabel) => set({ locationLabel }),
   flyTo: (flyTarget, flyZoom = 9) =>

@@ -172,18 +172,26 @@ export function frameToDataUrl(grid: ForecastGrid, frame: ForecastFrame): string
   return canvas.toDataURL("image/png");
 }
 
-/** True when the grid no longer covers enough of the given extent to be useful. */
-export function needsRefetch(grid: ForecastGrid | null, extent: TileExtent): boolean {
-  if (!grid) return true;
-  const covers =
+/** True when the grid spans the whole of the given extent. */
+export function coversBounds(
+  grid: ForecastGrid | null,
+  extent: TileExtent | null
+): boolean {
+  if (!grid || !extent) return false;
+  return (
     extent.west >= grid.west &&
     extent.east <= grid.east &&
     extent.south >= grid.south &&
-    extent.north <= grid.north;
-  if (!covers) return true;
+    extent.north <= grid.north
+  );
+}
+
+/** True when the grid no longer covers enough of the given extent to be useful. */
+export function needsRefetch(grid: ForecastGrid | null, extent: TileExtent): boolean {
+  if (!coversBounds(grid, extent)) return true;
 
   // Also refetch once the view has zoomed far enough in that the grid is coarse.
-  const gridSpan = grid.east - grid.west;
+  const gridSpan = grid!.east - grid!.west;
   const viewSpan = extent.east - extent.west;
   return viewSpan > 0 && gridSpan / viewSpan > 3;
 }
