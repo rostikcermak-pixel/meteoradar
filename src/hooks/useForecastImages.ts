@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState } from "react";
-import { useRadarStore } from "@/store/radarStore";
 
 /** Parallel downloads — enough to stay ahead of scrubbing, gentle on DWD. */
 const WORKERS = 4;
@@ -92,7 +91,6 @@ export function useForecastImages(
       }
     };
 
-    useRadarStore.getState().setForecastStatus("loading");
     void Promise.all(Array.from({ length: WORKERS }, worker));
 
     return () => {

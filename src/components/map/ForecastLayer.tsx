@@ -97,7 +97,15 @@ export default function ForecastLayer() {
   const images = useForecastImages(urls, forecastTime);
 
   useEffect(() => {
-    const url = forecastTime != null ? images.get(forecastTime) : undefined;
+    /*
+     * Prefer the copy we already hold, but fall back to fetching the step
+     * straight from DWD when it hasn't been downloaded yet. Waiting only for
+     * the local copy left the map blank whenever the user scrubbed faster than
+     * the prefetch could fill — which reads as the forecast being broken
+     * rather than merely loading.
+     */
+    const cached = forecastTime != null ? images.get(forecastTime) : undefined;
+    const url = cached ?? (forecastTime != null ? urls.get(forecastTime) : undefined);
 
     if (!url || !request) {
       layerRef.current?.remove();
@@ -126,7 +134,10 @@ export default function ForecastLayer() {
       layerRef.current.setBounds(latLng);
       layerRef.current.setUrl(url);
     }
-  }, [forecastTime, images, request, map, opacity]);
+
+    // A held copy is on screen at once; anything else has to come down first.
+    useRadarStore.getState().setForecastStatus(cached ? "ready" : "loading");
+  }, [forecastTime, images, urls, request, map, opacity]);
 
   useEffect(() => {
     layerRef.current?.setOpacity(opacity);
