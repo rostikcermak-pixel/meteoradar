@@ -94,7 +94,7 @@ export default function ForecastLayer() {
 
   // Fetched up front and held locally, so stepping is a swap rather than a
   // request. See useForecastImages for why the browser can't do this for us.
-  const images = useForecastImages(urls);
+  const images = useForecastImages(urls, forecastTime);
 
   useEffect(() => {
     const url = forecastTime != null ? images.get(forecastTime) : undefined;

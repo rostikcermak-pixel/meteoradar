@@ -48,7 +48,9 @@ export function Timeline() {
   const caption = isForecast
     ? forecastStatus === "error"
       ? { text: "Forecast imagery unavailable right now", warn: true }
-      : { text: "Modelled forecast (DWD ICON-EU) — hourly, ~7 km", warn: false }
+      : forecastStatus === "loading"
+        ? { text: "Loading forecast imagery for this view…", warn: false }
+        : { text: "Modelled forecast (DWD ICON-EU) — hourly, ~7 km", warn: false }
     : forecastStatus === "error" && !hasForecastSteps
       ? { text: "Forecast unavailable — showing observed radar only", warn: true }
       : { text: "", warn: false };
