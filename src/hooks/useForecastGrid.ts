@@ -10,6 +10,11 @@ const REFRESH_MS = 20 * 60 * 1000;
 /** A dropped request shouldn't wait out the full refresh interval. */
 const RETRY_MS = 15 * 1000;
 /**
+ * A grid costs the API far more than a single-point call, and the free tier
+ * does return 429. Backing off hard beats retrying into the same wall.
+ */
+const RATE_LIMIT_RETRY_MS = 90 * 1000;
+/**
  * Padding around the viewport so small pans don't trigger a refetch. Kept
  * modest: every bit of padding spends grid resolution on area the user can't
  * see, which is what makes the forecast overlay look blurry.
@@ -73,11 +78,16 @@ export function useForecastGrid() {
         useRadarStore
           .getState()
           .setForecastStatus(coversBounds(held, bounds) ? "ready" : "error");
-        timer = setTimeout(() => run(true), RETRY_MS);
+
+        const wait =
+          (e as Error).name === "RateLimitError" ? RATE_LIMIT_RETRY_MS : RETRY_MS;
+        timer = setTimeout(() => run(true), wait);
       }
     };
 
-    const load = debounce(() => run(false), 600);
+    // Deliberately unhurried: pinch-zooming fires a burst of viewport changes,
+    // and each grid request is expensive enough to get rate-limited.
+    const load = debounce(() => run(false), 900);
     load();
 
     return () => {

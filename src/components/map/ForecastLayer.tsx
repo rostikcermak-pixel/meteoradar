@@ -3,7 +3,7 @@ import { useMap } from "react-leaflet";
 import * as L from "leaflet";
 import { useRadarStore } from "@/store/radarStore";
 import { useMapStore } from "@/store/mapStore";
-import { coversBounds, frameToDataUrl } from "@/lib/forecast";
+import { frameToDataUrl, overlapFraction, MIN_OVERLAP } from "@/lib/forecast";
 
 /**
  * Draws modelled precipitation for the selected forecast step as an image
@@ -24,13 +24,14 @@ export default function ForecastLayer() {
   const gridIndexRaw = entry?.kind === "forecast" ? entry.gridIndex : null;
 
   /*
-   * The grid is a fixed rectangle. Zooming out leaves it smaller than the
-   * viewport, and drawing it then puts a hard-edged block of colour in the
-   * middle of the map that reads as weather rather than as the edge of the
-   * data. Withhold it until a grid covering the view arrives.
+   * Draw whenever a usable part of the grid falls inside the view. Requiring
+   * full coverage meant that panning towards a shower near the grid's edge
+   * made the whole layer vanish — precisely when the user was going to look
+   * at it. The border is feathered when painted, so a partly-covered view
+   * fades out instead of ending in a hard line.
    */
-  const covered = forecast != null && bounds != null && coversBounds(forecast, bounds);
-  const gridIndex = covered ? gridIndexRaw : null;
+  const overlap = overlapFraction(forecast, bounds);
+  const gridIndex = overlap >= MIN_OVERLAP ? gridIndexRaw : null;
 
   // Painting every step once keeps scrubbing and playback free of redraw cost.
   const frameUrls = useMemo(() => {

@@ -1,6 +1,6 @@
 import { useRadarStore } from "@/store/radarStore";
 import { useMapStore } from "@/store/mapStore";
-import { coversBounds } from "@/lib/forecast";
+import { overlapFraction, MIN_OVERLAP } from "@/lib/forecast";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { formatUnixHHMM, formatUnixDateTime } from "@/lib/format";
 import { cn } from "@/utils/cn";
@@ -49,13 +49,12 @@ export function Timeline() {
   // A failed refresh while forecast steps are still on the timeline is not
   // worth reporting — the steps are there and valid, just not re-fetched.
   const hasForecastSteps = timeline.some((e) => e.kind === "forecast");
-  // The overlay is withheld when the grid doesn't span the view, so the
-  // caption has to track the same condition or it will describe something the
-  // map isn't showing.
-  const covered = coversBounds(forecast, bounds);
+  // The caption has to track the same condition the overlay uses, or it will
+  // describe something the map isn't showing.
+  const drawn = overlapFraction(forecast, bounds) >= MIN_OVERLAP;
 
   const caption = isForecast
-    ? covered
+    ? drawn
       ? { text: "Modelled forecast (Open-Meteo) — coarser than live radar", warn: false }
       : forecastStatus === "error"
         ? { text: "Forecast unavailable for this area", warn: true }

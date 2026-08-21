@@ -74,19 +74,31 @@ export async function fetchForecastGrid(
     }
   }
 
-  const params = new URLSearchParams({
-    latitude: latParam.join(","),
-    longitude: lonParam.join(","),
-    hourly: "precipitation",
-    forecast_hours: String(FORECAST_HOURS),
-    timezone: "UTC",
+  /*
+   * Built by hand rather than with URLSearchParams, which percent-encodes the
+   * separators between coordinates. Over 384 points that turns every "," into
+   * "%2C" and inflates the URL from ~5.5 KB to ~7 KB for no gain. Only digits,
+   * '.', '-' and ',' appear here, all safe unencoded in a query value.
+   */
+  const query = [
+    `latitude=${latParam.join(",")}`,
+    `longitude=${lonParam.join(",")}`,
+    "hourly=precipitation",
+    `forecast_hours=${FORECAST_HOURS}`,
+    "timezone=UTC",
     // Unix timestamps rather than ISO strings: ~17% less to download over a
     // 384-point grid, and no local-vs-UTC parsing ambiguity at the far end.
-    timeformat: "unixtime",
-  });
+    "timeformat=unixtime",
+  ].join("&");
 
-  const res = await fetch(`${BASE_URL}?${params.toString()}`, { signal });
-  if (!res.ok) throw new Error(`Open-Meteo grid responded with HTTP ${res.status}`);
+  const res = await fetch(`${BASE_URL}?${query}`, { signal });
+  if (!res.ok) {
+    const err = new Error(`Open-Meteo grid responded with HTTP ${res.status}`);
+    // A grid costs the API far more than a single-point call, so hitting the
+    // rate limit is a real possibility worth backing off from properly.
+    if (res.status === 429) err.name = "RateLimitError";
+    throw err;
+  }
 
   const body = (await res.json()) as OpenMeteoGridPoint | OpenMeteoGridPoint[];
   const points = Array.isArray(body) ? body : [body];
@@ -148,6 +160,24 @@ export function precipColor(mm: number): [number, number, number, number] {
   return [0, 0, 0, 0];
 }
 
+/** Cells over which the overlay fades out at the grid's border. */
+const FEATHER_CELLS = 1.5;
+
+/**
+ * Fades the outermost cells so the grid's rectangular border doesn't land on
+ * the map as a hard line. Without this the edge of the data reads as a weather
+ * front, which is worse than showing slightly less of it.
+ */
+function edgeFade(col: number, row: number, cols: number, rows: number): number {
+  const distance = Math.min(
+    col + 0.5,
+    cols - 0.5 - col,
+    row + 0.5,
+    rows - 0.5 - row
+  );
+  return Math.max(0, Math.min(1, distance / FEATHER_CELLS));
+}
+
 /**
  * Paints one frame into a grid-sized PNG data URL. The image is deliberately
  * tiny (one pixel per grid cell) — the browser's own bilinear scaling smooths
@@ -163,13 +193,37 @@ export function frameToDataUrl(grid: ForecastGrid, frame: ForecastFrame): string
   const img = ctx.createImageData(grid.cols, grid.rows);
   for (let i = 0; i < grid.cols * grid.rows; i += 1) {
     const [r, g, b, a] = precipColor(frame.values[i] ?? 0);
+    const fade = edgeFade(i % grid.cols, Math.floor(i / grid.cols), grid.cols, grid.rows);
     img.data[i * 4] = r;
     img.data[i * 4 + 1] = g;
     img.data[i * 4 + 2] = b;
-    img.data[i * 4 + 3] = Math.round(a * 255);
+    img.data[i * 4 + 3] = Math.round(a * fade * 255);
   }
   ctx.putImageData(img, 0, 0);
   return canvas.toDataURL("image/png");
+}
+
+/**
+ * Least share of the viewport the grid must span to be worth drawing. Low on
+ * purpose: the border is feathered, so a partly-covered view fades out rather
+ * than ending in a hard line, and showing real data where it exists beats
+ * blanking the layer the moment the user pans towards its edge.
+ */
+export const MIN_OVERLAP = 0.02;
+
+/** How much of the viewport the grid actually spans, as a 0..1 fraction. */
+export function overlapFraction(
+  grid: ForecastGrid | null,
+  extent: TileExtent | null
+): number {
+  if (!grid || !extent) return 0;
+  const lon = Math.min(extent.east, grid.east) - Math.max(extent.west, grid.west);
+  const lat = Math.min(extent.north, grid.north) - Math.max(extent.south, grid.south);
+  if (lon <= 0 || lat <= 0) return 0;
+  const viewLon = extent.east - extent.west;
+  const viewLat = extent.north - extent.south;
+  if (viewLon <= 0 || viewLat <= 0) return 0;
+  return Math.min(1, (lon * lat) / (viewLon * viewLat));
 }
 
 /** True when the grid spans the whole of the given extent. */
