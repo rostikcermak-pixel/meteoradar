@@ -1,6 +1,4 @@
 import { useRadarStore } from "@/store/radarStore";
-import { useMapStore } from "@/store/mapStore";
-import { overlapFraction, MIN_OVERLAP } from "@/lib/forecast";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { formatUnixHHMM, formatUnixDateTime } from "@/lib/format";
 import { cn } from "@/utils/cn";
@@ -28,8 +26,6 @@ export function Timeline() {
   const nowIndex = useRadarStore((s) => s.nowIndex);
   const status = useRadarStore((s) => s.status);
   const forecastStatus = useRadarStore((s) => s.forecastStatus);
-  const forecast = useRadarStore((s) => s.forecast);
-  const bounds = useMapStore((s) => s.bounds);
 
   if (status === "error" && timeline.length === 0) {
     return (
@@ -49,16 +45,10 @@ export function Timeline() {
   // A failed refresh while forecast steps are still on the timeline is not
   // worth reporting — the steps are there and valid, just not re-fetched.
   const hasForecastSteps = timeline.some((e) => e.kind === "forecast");
-  // The caption has to track the same condition the overlay uses, or it will
-  // describe something the map isn't showing.
-  const drawn = overlapFraction(forecast, bounds) >= MIN_OVERLAP;
-
   const caption = isForecast
-    ? drawn
-      ? { text: "Modelled forecast (Open-Meteo) — coarser than live radar", warn: false }
-      : forecastStatus === "error"
-        ? { text: "Forecast unavailable for this area", warn: true }
-        : { text: "Loading forecast for this area…", warn: false }
+    ? forecastStatus === "error"
+      ? { text: "Forecast imagery unavailable right now", warn: true }
+      : { text: "Modelled forecast (DWD ICON-EU) — hourly, ~7 km", warn: false }
     : forecastStatus === "error" && !hasForecastSteps
       ? { text: "Forecast unavailable — showing observed radar only", warn: true }
       : { text: "", warn: false };

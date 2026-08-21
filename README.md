@@ -12,11 +12,11 @@ itself 24/7 with no server to maintain.
   [RainViewer](https://www.rainviewer.com/), with play/pause, step, speed
   control, and a scrubbable timeline.
 - **Forecast on the same timeline** — the scrubber continues past "now" into
-  a 12-hour modelled precipitation forecast, drawn on the map as a smooth
-  field from an Open-Meteo grid. RainViewer's free feed usually returns no
-  nowcast frames, so this is what fills the future half of the timeline;
-  forecast steps are labelled and coloured differently from observed radar,
-  and can be switched off in the layer controls.
+  24 hours of hourly precipitation forecast, drawn straight onto the map as
+  DWD ICON-EU model imagery (~7 km). RainViewer's free feed returns no
+  nowcast frames in practice, so this is what fills the future half of the
+  timeline; forecast steps are labelled and coloured differently from
+  observed radar, and can be switched off in the layer controls.
 - **Infrared satellite overlay** and an adjustable radar opacity / intensity
   legend.
 - **Hyperlocal current conditions** — temperature, feels-like, humidity,
@@ -46,7 +46,8 @@ Zustand, Recharts. The production build is inlined into a single
 | Source | Used for |
 | --- | --- |
 | [RainViewer](https://www.rainviewer.com/api) | Radar & satellite tiles |
-| [Open-Meteo](https://open-meteo.com/) | Current conditions & forecast |
+| [Open-Meteo](https://open-meteo.com/) | Current conditions, hourly & daily forecast |
+| [DWD open WMS](https://maps.dwd.de/geoserver/dwd/wms) | ICON-EU precipitation forecast imagery |
 | [OpenStreetMap Nominatim](https://nominatim.org/) | Place search / geocoding |
 | [CARTO](https://carto.com/basemaps) | Dark basemap tiles |
 

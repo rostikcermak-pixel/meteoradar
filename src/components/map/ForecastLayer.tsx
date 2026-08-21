@@ -1,82 +1,78 @@
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useRef } from "react";
 import { useMap } from "react-leaflet";
 import * as L from "leaflet";
 import { useRadarStore } from "@/store/radarStore";
-import { useMapStore } from "@/store/mapStore";
-import { frameToDataUrl, overlapFraction, MIN_OVERLAP } from "@/lib/forecast";
+import {
+  DWD_ATTRIBUTION,
+  DWD_LAYER,
+  DWD_STYLE,
+  DWD_WMS_URL,
+  toWmsTime,
+} from "@/lib/dwd";
+
+/** WMS params Leaflet forwards verbatim; `time` selects the forecast step. */
+interface WmsOptions extends L.WMSOptions {
+  time: string;
+}
 
 /**
- * Draws modelled precipitation for the selected forecast step as an image
- * overlay. RainViewer's free feed rarely returns nowcast tiles, so beyond the
- * last observed radar frame this is what the timeline shows.
+ * Draws the selected forecast step as DWD model imagery. The server renders
+ * whatever bounding box Leaflet asks for, so the layer always covers the view
+ * exactly — there is no grid to fall short of the viewport, and nothing to
+ * interpolate or feather.
  */
 export default function ForecastLayer() {
   const map = useMap();
-  const layerRef = useRef<L.ImageOverlay | null>(null);
+  const layerRef = useRef<L.TileLayer.WMS | null>(null);
 
-  const forecast = useRadarStore((s) => s.forecast);
   const timeline = useRadarStore((s) => s.timeline);
   const frameIndex = useRadarStore((s) => s.frameIndex);
   const opacity = useRadarStore((s) => s.opacity);
-  const bounds = useMapStore((s) => s.bounds);
 
   const entry = timeline[frameIndex];
-  const gridIndexRaw = entry?.kind === "forecast" ? entry.gridIndex : null;
-
-  /*
-   * Draw whenever a usable part of the grid falls inside the view. Requiring
-   * full coverage meant that panning towards a shower near the grid's edge
-   * made the whole layer vanish — precisely when the user was going to look
-   * at it. The border is feathered when painted, so a partly-covered view
-   * fades out instead of ending in a hard line.
-   */
-  const overlap = overlapFraction(forecast, bounds);
-  const gridIndex = overlap >= MIN_OVERLAP ? gridIndexRaw : null;
-
-  // Painting every step once keeps scrubbing and playback free of redraw cost.
-  const frameUrls = useMemo(() => {
-    if (!forecast) return [];
-    return forecast.frames.map((f) => frameToDataUrl(forecast, f));
-  }, [forecast]);
+  const forecastTime = entry?.kind === "forecast" ? entry.time : null;
 
   useEffect(() => {
-    if (!forecast || gridIndex == null) {
+    if (forecastTime == null) {
       layerRef.current?.remove();
       layerRef.current = null;
       return;
     }
 
-    const url = frameUrls[gridIndex];
-    if (!url) return;
-
-    const bounds = L.latLngBounds(
-      [forecast.south, forecast.west],
-      [forecast.north, forecast.east]
-    );
+    const time = toWmsTime(forecastTime);
 
     if (!layerRef.current) {
-      const overlay = L.imageOverlay(url, bounds, {
+      const layer = L.tileLayer.wms(DWD_WMS_URL, {
+        layers: DWD_LAYER,
+        styles: DWD_STYLE,
+        format: "image/png",
+        transparent: true,
+        version: "1.3.0",
         opacity,
-        interactive: false,
-        className: "mrad-forecast-overlay",
-      });
-      overlay.setZIndex(4);
-      overlay.addTo(map);
-      layerRef.current = overlay;
+        attribution: DWD_ATTRIBUTION,
+        time,
+      } as WmsOptions);
+      layer.setZIndex(4);
+      layer.on("tileerror", () => useRadarStore.getState().setForecastStatus("error"));
+      layer.on("load", () => useRadarStore.getState().setForecastStatus("ready"));
+      layer.addTo(map);
+      layerRef.current = layer;
     } else {
-      layerRef.current.setBounds(bounds);
-      layerRef.current.setUrl(url);
+      layerRef.current.setParams({ time } as unknown as L.WMSParams);
     }
-  }, [forecast, frameUrls, gridIndex, map, opacity]);
+  }, [forecastTime, map, opacity]);
 
   useEffect(() => {
     layerRef.current?.setOpacity(opacity);
   }, [opacity]);
 
-  useEffect(() => () => {
-    layerRef.current?.remove();
-    layerRef.current = null;
-  }, []);
+  useEffect(
+    () => () => {
+      layerRef.current?.remove();
+      layerRef.current = null;
+    },
+    []
+  );
 
   return null;
 }

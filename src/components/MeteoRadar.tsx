@@ -11,12 +11,12 @@ import { useRadarFrames } from "@/hooks/useRadarFrames";
 import { useWeatherData } from "@/hooks/useWeatherData";
 import { useRadarPlayback } from "@/hooks/useRadarPlayback";
 import { useKeyboardShortcuts } from "@/hooks/useKeyboardShortcuts";
-import { useForecastGrid } from "@/hooks/useForecastGrid";
+import { useForecastTimes } from "@/hooks/useForecastTimes";
 
 export default function MeteoRadar() {
   useGeolocation();
   useRadarFrames();
-  useForecastGrid();
+  useForecastTimes();
   useWeatherData();
   useRadarPlayback();
   useKeyboardShortcuts();

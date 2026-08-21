@@ -1,6 +1,5 @@
 import { create } from "zustand";
 import type { RainViewerFrame } from "@/types/radar";
-import type { ForecastGrid } from "@/types/forecast";
 import type { PlaybackSpeed } from "@/types/common";
 
 export type RadarStatus = "idle" | "loading" | "ready" | "error";
@@ -13,7 +12,7 @@ export type ForecastStatus = "idle" | "loading" | "ready" | "error";
  */
 export type TimelineEntry =
   | { kind: "radar"; time: number; path: string }
-  | { kind: "forecast"; time: number; gridIndex: number };
+  | { kind: "forecast"; time: number };
 
 interface RadarState {
   frames: RainViewerFrame[];
@@ -23,7 +22,8 @@ interface RadarState {
   error: string | null;
   lastUpdated: number | null;
 
-  forecast: ForecastGrid | null;
+  /** Hourly forecast instants, in UNIX seconds. */
+  forecastTimes: number[];
   forecastStatus: ForecastStatus;
 
   /** Radar frames followed by forecast frames. */
@@ -46,7 +46,7 @@ interface RadarState {
     host: string
   ) => void;
   setStatus: (status: RadarStatus, error?: string | null) => void;
-  setForecast: (forecast: ForecastGrid | null) => void;
+  setForecastTimes: (times: number[]) => void;
   setForecastStatus: (status: ForecastStatus) => void;
   setPlaying: (playing: boolean) => void;
   togglePlay: () => void;
@@ -63,7 +63,7 @@ interface RadarState {
 
 function buildTimeline(
   frames: RainViewerFrame[],
-  forecast: ForecastGrid | null,
+  forecastTimes: number[],
   showForecast: boolean
 ): TimelineEntry[] {
   const radar: TimelineEntry[] = frames.map((f) => ({
@@ -71,19 +71,19 @@ function buildTimeline(
     time: f.time,
     path: f.path,
   }));
-  if (!forecast || !showForecast) return radar;
+  // Forecast steps are generated locally and land before the radar feed
+  // answers. Holding them back until there are radar frames keeps the app from
+  // opening on a forecast step and pulling imagery nobody asked to see.
+  if (!showForecast || forecastTimes.length === 0 || radar.length === 0) {
+    return radar;
+  }
 
   // Only keep forecast steps that start after the last radar frame, so the two
   // sources never cover the same moment twice.
   const lastRadarTime = radar.length ? radar[radar.length - 1].time : 0;
-  const future: TimelineEntry[] = forecast.frames
-    .map((f, gridIndex) => ({ f, gridIndex }))
-    .filter(({ f }) => f.time > lastRadarTime)
-    .map(({ f, gridIndex }) => ({
-      kind: "forecast" as const,
-      time: f.time,
-      gridIndex,
-    }));
+  const future: TimelineEntry[] = forecastTimes
+    .filter((time) => time > lastRadarTime)
+    .map((time) => ({ kind: "forecast" as const, time }));
 
   return [...radar, ...future];
 }
@@ -107,7 +107,7 @@ export const useRadarStore = create<RadarState>((set, get) => ({
   error: null,
   lastUpdated: null,
 
-  forecast: null,
+  forecastTimes: [],
   forecastStatus: "idle",
 
   timeline: [],
@@ -123,7 +123,7 @@ export const useRadarStore = create<RadarState>((set, get) => ({
 
   setData: (frames, satellite, host) =>
     set((s) => {
-      const timeline = buildTimeline(frames, s.forecast, s.showForecast);
+      const timeline = buildTimeline(frames, s.forecastTimes, s.showForecast);
       const nowIndex = resolveNowIndex(timeline);
       return {
         frames,
@@ -132,19 +132,21 @@ export const useRadarStore = create<RadarState>((set, get) => ({
         timeline,
         nowIndex,
         // Start at "now"; afterwards keep whatever the user was looking at.
+        // Keyed on radar frames rather than the timeline, which can already
+        // hold locally-generated forecast steps before the first feed arrives.
         frameIndex:
-          s.timeline.length === 0 ? nowIndex : clamp(timeline.length, s.frameIndex),
+          s.frames.length === 0 ? nowIndex : clamp(timeline.length, s.frameIndex),
         lastUpdated: Date.now(),
       };
     }),
 
   setStatus: (status, error = null) => set({ status, error }),
 
-  setForecast: (forecast) =>
+  setForecastTimes: (forecastTimes) =>
     set((s) => {
-      const timeline = buildTimeline(s.frames, forecast, s.showForecast);
+      const timeline = buildTimeline(s.frames, forecastTimes, s.showForecast);
       return {
-        forecast,
+        forecastTimes,
         timeline,
         nowIndex: resolveNowIndex(timeline),
         frameIndex: clamp(timeline.length, s.frameIndex),
@@ -201,7 +203,7 @@ export const useRadarStore = create<RadarState>((set, get) => ({
   toggleForecast: () =>
     set((s) => {
       const showForecast = !s.showForecast;
-      const timeline = buildTimeline(s.frames, s.forecast, showForecast);
+      const timeline = buildTimeline(s.frames, s.forecastTimes, showForecast);
       return {
         showForecast,
         timeline,
